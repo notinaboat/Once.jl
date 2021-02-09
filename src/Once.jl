@@ -6,40 +6,53 @@ module Once
 export @once
 
 """
-    @once var::Type = init_expression
+    @once f()::Type = expression
 
-Define `const var`, initiliased once on first access.
-Value is accessed via `var[]`.
+Define funciton `f()` that evaluates `expression` once on the first call.
+Subsequent calls return a cached value without re-evaluating expression.
+
+```
+julia> @once f()::String = (println("foo"); "bar")
+f (generic function with 1 method)
+
+julia> f()
+foo
+"bar"
+
+julia> f()
+"bar"
+```
+
 """
 macro once(ex)
     if !(ex.head == :(=)
     &&   ex.args[1] isa Expr
     &&   ex.args[1].head == :(::)
-    &&   ex.args[1].args[1] isa Symbol)
+    &&   ex.args[1].args[1] isa Expr
+    &&   ex.args[1].args[1].head == :call
+    &&   length(ex.args[1].args[1].args) == 1)
         throw(ArgumentError("Invalid `@once` expression."))
     end
 
-    name = ex.args[1].args[1]
+    name = ex.args[1].args[1].args[1]
     type = ex.args[1].args[2]
-    init = ex.args[2]
-    wrapper = Symbol(name, "_wrapper")
+    init_expression = ex.args[2]
 
-    esc(quote
-        mutable struct $wrapper
-            value::$type
-            $wrapper() = new()
-        end
+    quote
+        let flag = Ref(false), cache = Ref{$type}()
 
-        const $name = $wrapper()
+            @noinline init()::$type = $init_expression
 
-        function Base.getindex(once::$wrapper)
-            @show once
-            if !isdefined(once, :value)
-                once.value = $init
+            global $name
+            Base.@__doc__ @inline function $name()
+                if !flag[]
+                    cache[] = init()
+                    flag[] = true
+                end
+                cache[]
             end
-            once.value
         end
-    end)
+    end |> esc
 end
 
 

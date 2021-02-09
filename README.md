@@ -2,8 +2,20 @@
 
 
 ```
-@once var::Type = init_expression
+@once f()::Type = expression
 ```
 
-Define `const var`, initiliased once on first access. Value is accessed via `var[]`.
+Define funciton `f()` that evaluates `expression` once on the first call. Subsequent calls return a cached value without re-evaluating expression.
+
+```
+julia> @once f()::String = (println("foo"); "bar")
+f (generic function with 1 method)
+
+julia> f()
+foo
+"bar"
+
+julia> f()
+"bar"
+```
 
